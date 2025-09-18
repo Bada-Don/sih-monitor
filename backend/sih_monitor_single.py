@@ -5,7 +5,6 @@ from sih_monitor import SIHSubmissionMonitor
 def create_config_from_env():
     """Create config from environment variables for GitHub Actions"""
     config = {
-        "target_problem_id": "25057",
         "email": {
             "enabled": True,
             "smtp_server": "smtp.gmail.com",
@@ -23,9 +22,20 @@ def create_config_from_env():
         }
     }
     
-    # Save config temporarily
+    # Create problem config
+    problem_config = {
+        "problem_statement_id": os.getenv('PROBLEM_ID', '25057'),
+        "description": "SIH 2025 Problem Statement ID to monitor",
+        "last_updated": "2025-09-18",
+        "notes": "Configured via environment variable PROBLEM_ID"
+    }
+    
+    # Save configs temporarily
     with open('config.json', 'w') as f:
         json.dump(config, f, indent=2)
+    
+    with open('problem_config.json', 'w') as f:
+        json.dump(problem_config, f, indent=2)
 
 def main():
     # Create config from environment

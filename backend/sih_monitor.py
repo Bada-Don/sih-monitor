@@ -10,13 +10,14 @@ import schedule
 import logging
 
 class SIHSubmissionMonitor:
-    def __init__(self, config_file='config.json'):
+    def __init__(self, config_file='config.json', problem_config_file='problem_config.json'):
         """
         Initialize the monitor with configuration
         """
         self.config = self.load_config(config_file)
+        self.problem_config = self.load_problem_config(problem_config_file)
         self.url = "https://sih.gov.in/sih2025PS"
-        self.target_id = self.config.get('target_problem_id', '25057')
+        self.target_id = self.problem_config.get('problem_statement_id', '25057')
         self.last_count = None
         self.setup_logging()
         
@@ -26,9 +27,8 @@ class SIHSubmissionMonitor:
             with open(config_file, 'r') as f:
                 return json.load(f)
         except FileNotFoundError:
-            # Create default config if not exists
+            # Create default config if not exists (without problem_id)
             default_config = {
-                "target_problem_id": "25057",
                 "email": {
                     "enabled": True,
                     "smtp_server": "smtp.gmail.com",
@@ -51,13 +51,31 @@ class SIHSubmissionMonitor:
             print("Please update the configuration with your credentials.")
             return default_config
     
+    def load_problem_config(self, problem_config_file):
+        """Load problem statement configuration from dedicated file"""
+        try:
+            with open(problem_config_file, 'r') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            # Create default problem config if not exists
+            default_problem_config = {
+                "problem_statement_id": "25057",
+                "description": "SIH 2025 Problem Statement ID to monitor",
+                "last_updated": "2025-09-18",
+                "notes": "Change this ID to monitor a different problem statement. The system will automatically pick up changes on restart."
+            }
+            with open(problem_config_file, 'w') as f:
+                json.dump(default_problem_config, f, indent=2)
+            print(f"Created default problem config file: {problem_config_file}")
+            return default_problem_config
+    
     def setup_logging(self):
         """Setup logging configuration"""
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler('sih_monitor.log'),
+                logging.FileHandler('sih_monitor.log', encoding='utf-8'),
                 logging.StreamHandler()
             ]
         )
@@ -192,7 +210,7 @@ class SIHSubmissionMonitor:
             client = Client(self.config['whatsapp']['twilio_sid'], self.config['whatsapp']['twilio_token'])
             
             message_body = f"""
-🚨 SIH Submission Update
+SIH Submission Update
 
 Problem ID: {self.target_id}
 Previous: {previous_count or 'N/A'}
@@ -250,7 +268,8 @@ Time: {datetime.now().strftime('%H:%M:%S')}
         state = {
             'last_count': self.last_count,
             'last_check': datetime.now().isoformat(),
-            'target_id': self.target_id
+            'target_id': self.target_id,
+            'problem_id': self.target_id  # For frontend compatibility
         }
         with open('monitor_state.json', 'w') as f:
             json.dump(state, f, indent=2)

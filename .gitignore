@@ -1,1 +1,7 @@
 config.json
+frontend/node_modules
+
+.bin
+npm-cli.js
+npm-cli.cmd
+npm

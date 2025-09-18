@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "smtp_server": {"type": "string"},
+        "smtp_port": {"type": "number"},
+        "sender_email": {"type": "string", "format": "email"},
+        "sender_password": {"type": "string"},
+        "recipient_email": {"type": "string", "format": "email"}
+      },
+      "required": ["enabled", "smtp_server", "smtp_port", "sender_email", "recipient_email"]
+    },
+    "whatsapp": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "twilio_sid": {"type": "string"},
+        "twilio_token": {"type": "string"},
+        "from_number": {"type": "string"},
+        "to_number": {"type": "string"}
+      },
+      "required": ["enabled"]
+    }
+  },
+  "required": ["email", "whatsapp"]
+}
