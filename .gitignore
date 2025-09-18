@@ -1,5 +1,11 @@
 config.json
+backend/config.json
 frontend/node_modules
+backend/__pycache__/
+*.pyc
+*.log
+backend/sih_monitor.log
+backend/monitor_state.json
 
 .bin
 npm-cli.js
