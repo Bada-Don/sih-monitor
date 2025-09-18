@@ -101,6 +101,15 @@ scheduler.add_job(update_submission_count, 'interval', hours=1)
 scheduler.start()
 
 # API Routes
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for Render"""
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "problem_id": monitor.target_id
+    })
+
 @app.route('/api/count', methods=['GET'])
 def get_count():
     """Get the current submission count"""
@@ -192,4 +201,6 @@ def serve_frontend(path):
 if __name__ == '__main__':
     # Initial update on startup
     update_submission_count()
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    # Render provides PORT environment variable
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)

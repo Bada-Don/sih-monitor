@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: sih-monitor
+    env: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && gunicorn app:app
+    plan: free
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: PROBLEM_ID
+        value: "25057"
+      - key: EMAIL_ENABLED
+        value: "true"
+      - key: WHATSAPP_ENABLED
+        value: "true"
+      # Add your actual values in Render dashboard:
+      # - key: SENDER_EMAIL
+      #   value: your-email@gmail.com
+      # - key: SENDER_PASSWORD
+      #   value: your-app-password
+      # - key: RECIPIENT_EMAIL
+      #   value: recipient@gmail.com
+      # - key: TWILIO_SID
+      #   value: your-twilio-sid
+      # - key: TWILIO_TOKEN
+      #   value: your-twilio-token
+      # - key: TWILIO_FROM_NUMBER
+      #   value: whatsapp:+1234567890
+      # - key: TWILIO_TO_NUMBER
+      #   value: whatsapp:+0987654321

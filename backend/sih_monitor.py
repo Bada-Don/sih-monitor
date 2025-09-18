@@ -8,14 +8,16 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 import schedule
 import logging
+from config_loader import load_config, load_problem_config
 
 class SIHSubmissionMonitor:
     def __init__(self, config_file='config.json', problem_config_file='problem_config.json'):
         """
         Initialize the monitor with configuration
         """
-        self.config = self.load_config(config_file)
-        self.problem_config = self.load_problem_config(problem_config_file)
+        # Use the new config loader that supports environment variables
+        self.config = load_config()
+        self.problem_config = load_problem_config()
         self.url = "https://sih.gov.in/sih2025PS"
         self.target_id = self.problem_config.get('problem_statement_id', '25057')
         self.last_count = None
