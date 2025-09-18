@@ -49,6 +49,10 @@ def update_submission_count():
             current_state["problem_id"] = monitor.target_id  # Ensure problem_id is always current
             current_state["last_refresh"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
+            # Clear any previous error
+            if "error" in current_state:
+                del current_state["error"]
+            
             # Save state to file for persistence
             with open('monitor_state.json', 'w') as f:
                 json.dump(current_state, f)
@@ -67,13 +71,22 @@ def update_submission_count():
                 
         return True
     except Exception as e:
-        monitor.logger.error(f"Error updating count: {e}")
-        # Set count to 0 if there's an error parsing
+        error_msg = str(e)
+        monitor.logger.error(f"Error updating count: {error_msg}")
+        
+        # Handle different types of errors
         with state_lock:
-            current_state["count"] = 0
             current_state["problem_id"] = monitor.target_id  # Ensure problem_id is always current
             current_state["last_refresh"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            current_state["error"] = str(e)
+            current_state["error"] = error_msg
+            
+            # Only set count to 0 if it's not a 403 error (keep previous count for 403)
+            if "403" not in error_msg and "Forbidden" not in error_msg:
+                current_state["count"] = 0
+            # For 403 errors, keep the previous count and add a warning
+            elif "403" in error_msg or "Forbidden" in error_msg:
+                current_state["error"] = "Website is blocking requests (403 Forbidden). This is likely due to anti-bot measures."
+                current_state["status"] = "blocked"
             
             # Save state to file for persistence
             with open('monitor_state.json', 'w') as f:
@@ -187,6 +200,46 @@ def update_problem_config():
         return jsonify({
             "success": False,
             "message": f"Error updating problem configuration: {str(e)}"
+        }), 500
+
+@app.route('/api/debug', methods=['GET'])
+def debug_info():
+    """Debug endpoint to help troubleshoot issues"""
+    try:
+        import requests
+        debug_info = {
+            "timestamp": datetime.now().isoformat(),
+            "target_url": monitor.url,
+            "target_id": monitor.target_id,
+            "current_state": current_state.copy(),
+            "environment": {
+                "python_version": sys.version,
+                "requests_version": requests.__version__,
+                "has_proxy": bool(os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY'))
+            }
+        }
+        
+        # Test basic connectivity
+        try:
+            session = monitor.get_session_with_headers()
+            response = session.head(monitor.url, timeout=10)
+            debug_info["connectivity_test"] = {
+                "status_code": response.status_code,
+                "headers": dict(response.headers),
+                "success": True
+            }
+        except Exception as e:
+            debug_info["connectivity_test"] = {
+                "error": str(e),
+                "success": False
+            }
+        
+        return jsonify(debug_info)
+        
+    except Exception as e:
+        return jsonify({
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
         }), 500
 
 # Serve static files from frontend build directory

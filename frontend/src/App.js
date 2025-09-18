@@ -77,11 +77,30 @@ function App() {
                 </div>
               ) : (
                 <>
+                  {data?.error && (
+                    <Alert variant="warning" className="mb-3">
+                      <Alert.Heading>Monitoring Issue</Alert.Heading>
+                      <p className="mb-0">{data.error}</p>
+                      {data.status === 'blocked' && (
+                        <hr />
+                        <p className="mb-0 small">
+                          The SIH website may be blocking automated requests. 
+                          This is temporary and the system will keep trying.
+                        </p>
+                      )}
+                    </Alert>
+                  )}
+                  
                   <div className="mb-4">
                     <h2 className="text-center display-4 mb-0">
-                      {data?.count !== null ? data?.count : 'N/A'}
+                      {data?.count !== null && data?.count !== undefined ? data?.count : 'N/A'}
                     </h2>
-                    <p className="text-center text-muted">Current Submissions</p>
+                    <p className="text-center text-muted">
+                      Current Submissions
+                      {data?.status === 'blocked' && (
+                        <span className="badge bg-warning text-dark ms-2">Blocked</span>
+                      )}
+                    </p>
                   </div>
                   
                   <div className="mb-3">
@@ -89,6 +108,7 @@ function App() {
                     <p className="mb-1"><strong>Last Updated:</strong> {formatDate(data?.last_refresh)}</p>
                     <p className="mb-0 text-muted small">
                       Auto-refreshes every hour
+                      {data?.status === 'blocked' && ' (currently blocked)'}
                     </p>
                   </div>
                 </>

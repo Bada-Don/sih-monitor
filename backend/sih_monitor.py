@@ -85,35 +85,79 @@ class SIHSubmissionMonitor:
     
     def get_session_with_headers(self):
         """Create a session with proper headers to avoid blocking"""
+        import os
         session = requests.Session()
+        
+        # Add proxy support if environment variable is set
+        proxy_url = os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY')
+        if proxy_url:
+            session.proxies = {
+                'http': proxy_url,
+                'https': proxy_url
+            }
+            self.logger.info(f"Using proxy: {proxy_url}")
+        
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0',
+            'DNT': '1',
+            'Referer': 'https://www.google.com/',
         }
         session.headers.update(headers)
         return session
     
     def fetch_page_content(self):
         """Fetch the SIH page content with retry logic"""
+        import random
         session = self.get_session_with_headers()
-        max_retries = 3
+        max_retries = 5
         
         for attempt in range(max_retries):
             try:
                 self.logger.info(f"Fetching page content (attempt {attempt + 1})")
-                response = session.get(self.url, timeout=30)
+                
+                # Add random delay to avoid rate limiting
+                if attempt > 0:
+                    delay = random.uniform(10, 30) + (attempt * 5)
+                    self.logger.info(f"Waiting {delay:.1f} seconds before retry...")
+                    time.sleep(delay)
+                
+                # Add a small random delay even on first attempt
+                time.sleep(random.uniform(2, 5))
+                
+                response = session.get(self.url, timeout=45, allow_redirects=True)
+                
+                # Check for specific error responses
+                if response.status_code == 403:
+                    self.logger.warning(f"403 Forbidden - Server is blocking requests")
+                    if attempt < max_retries - 1:
+                        continue
+                    else:
+                        raise requests.exceptions.HTTPError(f"403 Forbidden after {max_retries} attempts")
+                
                 response.raise_for_status()
                 return response.text
             
             except requests.RequestException as e:
                 self.logger.warning(f"Attempt {attempt + 1} failed: {e}")
                 if attempt < max_retries - 1:
-                    time.sleep(5 * (attempt + 1))  # Exponential backoff
+                    continue
                 else:
+                    # On final failure, try to provide more context
+                    if "403" in str(e):
+                        self.logger.error("Server is consistently blocking requests. This might be due to:")
+                        self.logger.error("1. Rate limiting or anti-bot measures")
+                        self.logger.error("2. IP-based blocking")
+                        self.logger.error("3. Changes in website security")
                     raise
     
     def parse_submission_count(self, html_content):
@@ -264,6 +308,60 @@ Time: {datetime.now().strftime('%H:%M:%S')}
             
         except Exception as e:
             self.logger.error(f"Error during submission check: {e}")
+            
+            # If it's a 403 error, provide specific guidance
+            if "403" in str(e) or "Forbidden" in str(e):
+                self.logger.error("The website is blocking requests. Possible solutions:")
+                self.logger.error("1. The site may have implemented stronger anti-bot measures")
+                self.logger.error("2. Try accessing from a different IP address")
+                self.logger.error("3. Consider using a proxy service")
+                self.logger.error("4. Check if the website structure has changed")
+                
+                # Send notification about the blocking
+                try:
+                    self.send_error_notification(str(e))
+                except Exception as notify_err:
+                    self.logger.error(f"Failed to send error notification: {notify_err}")
+    
+    def send_error_notification(self, error_message):
+        """Send notification about monitoring errors"""
+        if not self.config['email']['enabled']:
+            return
+            
+        try:
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+            import smtplib
+            
+            msg = MIMEMultipart()
+            msg['From'] = self.config['email']['sender_email']
+            msg['To'] = self.config['email']['recipient_email']
+            msg['Subject'] = f"SIH Monitor Error - Problem ID {self.target_id}"
+            
+            body = f"""
+            SIH Monitor Error Alert
+            
+            Problem Statement ID: {self.target_id}
+            Error: {error_message}
+            Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+            
+            The monitoring system encountered an error and may need attention.
+            
+            If this is a 403 Forbidden error, the website may be blocking automated requests.
+            """
+            
+            msg.attach(MIMEText(body, 'plain'))
+            
+            server = smtplib.SMTP(self.config['email']['smtp_server'], self.config['email']['smtp_port'])
+            server.starttls()
+            server.login(self.config['email']['sender_email'], self.config['email']['sender_password'])
+            server.send_message(msg)
+            server.quit()
+            
+            self.logger.info("Error notification sent successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to send error notification: {e}")
     
     def save_state(self):
         """Save current state to file"""
